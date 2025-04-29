@@ -46,10 +46,7 @@ class ImageProcessor:
         else:
             self.mask_image = mask_image
 
-        if device == "cpu":
-            self.face_detector = None
-        else:
-            self.face_detector = FaceDetector(device=device)
+        self.face_detector = FaceDetector(device=device)
 
     def affine_transform(self, image: torch.Tensor) -> np.ndarray:
         if self.face_detector is None:

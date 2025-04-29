@@ -1,6 +1,7 @@
 from insightface.app import FaceAnalysis
 import numpy as np
 import torch
+from latentsync.utils.util import use_dlc, debug_print
 
 INSIGHTFACE_DETECT_SIZE = 640
 
@@ -10,7 +11,8 @@ class FaceDetector:
         self.app = FaceAnalysis(
             allowed_modules=["detection", "landmark_2d_106"],
             root="checkpoints/auxiliary",
-            providers=["CUDAExecutionProvider"],
+            # providers=["CUDAExecutionProvider"],
+            providers=["CPUExecutionProvider"],
         )
         self.app.prepare(ctx_id=cuda_to_int(device), det_size=(INSIGHTFACE_DETECT_SIZE, INSIGHTFACE_DETECT_SIZE))
 
@@ -73,6 +75,9 @@ def cuda_to_int(cuda_str: str) -> int:
     """
     Convert the string with format "cuda:X" to integer X.
     """
+    if use_dlc():
+        device = torch.device(cuda_str)
+        return 0 if device.index is None else device.index
     if cuda_str == "cuda":
         return 0
     device = torch.device(cuda_str)

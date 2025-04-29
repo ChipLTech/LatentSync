@@ -14,6 +14,8 @@ from diffusers.models.attention import FeedForward, AdaLayerNorm
 
 from einops import rearrange, repeat
 
+from ..utils.util import debug_print, use_dlc
+
 
 @dataclass
 class Transformer3DModelOutput(BaseOutput):
@@ -237,9 +239,10 @@ class Attention(nn.Module):
 
     def split_heads(self, tensor):
         batch_size, seq_len, dim = tensor.shape
+        debug_print(2, "reshape:", tensor.shape, " -> ", f"{batch_size}, {seq_len}, {self.heads}, {dim // self.heads}")
         tensor = tensor.reshape(batch_size, seq_len, self.heads, dim // self.heads)
         tensor = tensor.permute(0, 2, 1, 3)
-        return tensor
+        return tensor.contiguous()
 
     def concat_heads(self, tensor):
         batch_size, heads, seq_len, head_dim = tensor.shape

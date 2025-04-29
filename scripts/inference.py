@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os, sys
+curr_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.join(curr_dir, "..")
+sys.path.append(parent_dir)
+
 import argparse
 import os
 from omegaconf import OmegaConf
@@ -29,9 +34,8 @@ def main(config, args):
     if not os.path.exists(args.audio_path):
         raise RuntimeError(f"Audio path '{args.audio_path}' not found")
 
-    # Check if the GPU supports float16
-    is_fp16_supported = torch.cuda.is_available() and torch.cuda.get_device_capability()[0] > 7
-    dtype = torch.float16 if is_fp16_supported else torch.float32
+    dtype = torch.float
+    device = args.device
 
     print(f"Input video path: {args.video_path}")
     print(f"Input audio path: {args.audio_path}")
@@ -48,12 +52,12 @@ def main(config, args):
 
     audio_encoder = Audio2Feature(
         model_path=whisper_model_path,
-        device="cuda",
+        device=device,
         num_frames=config.data.num_frames,
         audio_feat_length=config.data.audio_feat_length,
     )
 
-    vae = AutoencoderKL.from_pretrained("stabilityai/sd-vae-ft-mse", torch_dtype=dtype)
+    vae = AutoencoderKL.from_pretrained("checkpoints/sd-vae-ft-mse", torch_dtype=dtype)
     vae.config.scaling_factor = 0.18215
     vae.config.shift_factor = 0
 
@@ -70,7 +74,7 @@ def main(config, args):
         audio_encoder=audio_encoder,
         denoising_unet=denoising_unet,
         scheduler=scheduler,
-    ).to("cuda")
+    ).to(device)
 
     if args.seed != -1:
         set_seed(args.seed)
@@ -104,8 +108,20 @@ if __name__ == "__main__":
     parser.add_argument("--inference_steps", type=int, default=20)
     parser.add_argument("--guidance_scale", type=float, default=1.0)
     parser.add_argument("--seed", type=int, default=1247)
+    parser.add_argument("--device", type=str, default="cpu")
     args = parser.parse_args()
 
     config = OmegaConf.load(args.unet_config_path)
 
     main(config, args)
+
+""" 
+python scripts/inference.py \
+  --unet_config_path "configs/unet/stage2.yaml" \
+  --inference_ckpt_path "checkpoints/latentsync_unet.pt" \
+  --inference_steps 5 \
+  --guidance_scale 2.0 \
+  --video_path "assets/demo1_video.mp4" \
+  --audio_path "assets/demo1_audio.wav" \
+  --video_out_path "video_out.mp4" --device dlc
+"""

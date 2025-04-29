@@ -30,6 +30,7 @@ class AlignRestore(object):
         ).unsqueeze(0)
         affine_matrix_tensor = torch.from_numpy(affine_matrix).to(device=self.device, dtype=self.dtype).unsqueeze(0)
 
+        # TODO FIXME DLC: use native op
         crop_tensor = kornia.geometry.transform.warp_affine(
             img_tensor,
             affine_matrix_tensor,
@@ -127,11 +128,15 @@ class AlignRestore(object):
         points2_normalized = points2_centered / s2
 
         covariance = torch.matmul(points1_normalized.T, points2_normalized)
-        U, S, V = torch.svd(covariance)
+        # TODO FIXME DLC: use native op
+        # U, S, V = torch.svd(covariance)
+        U, S, V = torch.svd(covariance.cpu())
+        U = U.to(covariance.device)
+        V = V.to(covariance.device)
 
         R = torch.matmul(V, U.T)
 
-        det = torch.det(R)
+        det = torch.det(R.cpu()).to(covariance.device)
         if det < 0:
             V[:, -1] = -V[:, -1]
             R = torch.matmul(V, U.T)

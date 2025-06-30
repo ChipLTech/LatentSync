@@ -242,7 +242,7 @@ class Attention(nn.Module):
         debug_print(2, "reshape:", tensor.shape, " -> ", f"{batch_size}, {seq_len}, {self.heads}, {dim // self.heads}")
         tensor = tensor.reshape(batch_size, seq_len, self.heads, dim // self.heads)
         tensor = tensor.permute(0, 2, 1, 3)
-        return tensor.contiguous()
+        return tensor
 
     def concat_heads(self, tensor):
         batch_size, heads, seq_len, head_dim = tensor.shape
@@ -271,7 +271,11 @@ class Attention(nn.Module):
                 attention_mask = attention_mask.repeat_interleave(self.heads, dim=0)
 
         # Use PyTorch native implementation of FlashAttention-2
-        hidden_states = F.scaled_dot_product_attention(query, key, value, attn_mask=attention_mask)
+        # hidden_states = F.scaled_dot_product_attention(query, key, value, attn_mask=attention_mask)
+        if query.shape == key.shape == value.shape and query.shape[-1]<=128:
+            hidden_states = torch.dlc_sdpa_combine(query, key, value, attn_bias=attention_mask)[0]
+        else:
+            hidden_states = F.scaled_dot_product_attention(query, key, value, attn_mask=attention_mask)
 
         hidden_states = self.concat_heads(hidden_states)
 

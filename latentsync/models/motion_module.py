@@ -297,7 +297,11 @@ class VersatileAttention(Attention):
                 attention_mask = attention_mask.repeat_interleave(self.heads, dim=0)
 
         # Use PyTorch native implementation of FlashAttention-2
-        hidden_states = F.scaled_dot_product_attention(query, key, value, attn_mask=attention_mask)
+        # hidden_states = F.scaled_dot_product_attention(query, key, value, attn_mask=attention_mask)
+        if query.shape == key.shape == value.shape and query.shape[-1] <= 128:
+            hidden_states = torch.dlc_sdpa_combine(query, key, value, attn_bias=attention_mask)[0]
+        else:
+            hidden_states = F.scaled_dot_product_attention(query, key, value, attn_mask=attention_mask)
 
         hidden_states = self.concat_heads(hidden_states)
 

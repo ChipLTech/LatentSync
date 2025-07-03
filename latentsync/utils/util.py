@@ -281,6 +281,14 @@ def check_model_and_download(ckpt_path: str, huggingface_model_id: str = "ByteDa
         subprocess.run(download_cmd, shell=True)
 
 
+class dummy_context:
+    def __enter__(self):
+        pass
+
+    def __exit__(self, *args):
+        pass
+
+
 import os, inspect, threading
 from functools import lru_cache
 
@@ -316,4 +324,3 @@ def debug_print(level: int = 1, *args):
         msg += f"\033[1m\033[33m[{func}]\033[0m "
     msg += " ".join(str(arg) for arg in args)
     print(msg, "\n", flush=True)
- 

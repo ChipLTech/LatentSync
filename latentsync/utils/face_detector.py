@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from latentsync.utils.util import use_dlc, debug_print
 
-INSIGHTFACE_DETECT_SIZE = 640
+INSIGHTFACE_DETECT_SIZE = 512
 
 
 class FaceDetector:

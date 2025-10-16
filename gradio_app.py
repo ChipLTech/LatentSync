@@ -1,9 +1,12 @@
+import time
+
 import gradio as gr
 from pathlib import Path
 from scripts.inference import main
 from omegaconf import OmegaConf
 import argparse
 from datetime import datetime
+import torch
 
 CONFIG_PATH = Path("configs/unet/stage2_512.yaml")
 CHECKPOINT_PATH = Path("checkpoints/latentsync_unet.pt")
@@ -50,7 +53,16 @@ def process_video(
         return output_path  # Ensure the output path is returned
     except Exception as e:
         print(f"Error during processing: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise gr.Error(f"Error during processing: {str(e)}")
+
+
+def dlc_empty_cache():
+    print("Start cleaning up dlc cache.")
+    start = time.time()
+    torch.dlc.empty_cache()
+    print(f"Finish cleaning up dlc cache. Cost: {time.time() - start}")
 
 
 def create_args(
@@ -66,6 +78,8 @@ def create_args(
     parser.add_argument("--temp_dir", type=str, default="temp")
     parser.add_argument("--seed", type=int, default=1247)
     parser.add_argument("--enable_deepcache", action="store_true")
+    parser.add_argument("--device", type=str, default="cpu")
+
 
     return parser.parse_args(
         [
@@ -86,6 +100,8 @@ def create_args(
             "--temp_dir",
             "temp",
             "--enable_deepcache",
+            "--device",
+            "dlc",
         ]
     )
 
@@ -152,4 +168,4 @@ with gr.Blocks(title="LatentSync demo") as demo:
     )
 
 if __name__ == "__main__":
-    demo.launch(inbrowser=True, share=True)
+    demo.launch(server_name="0.0.0.0", server_port=8081, inbrowser=False, share=False)

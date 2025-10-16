@@ -1,4 +1,6 @@
 #!/bin/bash
+export DLC_VISIBLE_DEVICES=1
+
 
 python -m scripts.inference \
     --unet_config_path "configs/unet/stage2_512.yaml" \
@@ -8,4 +10,5 @@ python -m scripts.inference \
     --enable_deepcache \
     --video_path "assets/demo1_video.mp4" \
     --audio_path "assets/demo1_audio.wav" \
-    --video_out_path "video_out.mp4"
+    --video_out_path "video_out.mp4" \
+    --device dlc

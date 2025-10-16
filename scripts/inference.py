@@ -29,6 +29,8 @@ from latentsync.whisper.audio2feature import Audio2Feature
 from DeepCache import DeepCacheSDHelper
 
 
+pipeline=None
+
 def main(config, args):
     if not os.path.exists(args.video_path):
         raise RuntimeError(f"Video path '{args.video_path}' not found")
@@ -37,45 +39,47 @@ def main(config, args):
 
     dtype = torch.float
     device = args.device
+    helper = None
 
     print(f"Input video path: {args.video_path}")
     print(f"Input audio path: {args.audio_path}")
-    print(f"Loaded checkpoint path: {args.inference_ckpt_path}")
+    global pipeline
+    if pipeline is None:
+        print(f"Loading checkpoint path: {args.inference_ckpt_path}")
+        scheduler = DDIMScheduler.from_pretrained("configs")
 
-    scheduler = DDIMScheduler.from_pretrained("configs")
+        if config.model.cross_attention_dim == 768:
+            whisper_model_path = "checkpoints/whisper/small.pt"
+        elif config.model.cross_attention_dim == 384:
+            whisper_model_path = "checkpoints/whisper/tiny.pt"
+        else:
+            raise NotImplementedError("cross_attention_dim must be 768 or 384")
 
-    if config.model.cross_attention_dim == 768:
-        whisper_model_path = "checkpoints/whisper/small.pt"
-    elif config.model.cross_attention_dim == 384:
-        whisper_model_path = "checkpoints/whisper/tiny.pt"
-    else:
-        raise NotImplementedError("cross_attention_dim must be 768 or 384")
+        audio_encoder = Audio2Feature(
+            model_path=whisper_model_path,
+            device=device,
+            num_frames=config.data.num_frames,
+            audio_feat_length=config.data.audio_feat_length,
+        )
 
-    audio_encoder = Audio2Feature(
-        model_path=whisper_model_path,
-        device=device,
-        num_frames=config.data.num_frames,
-        audio_feat_length=config.data.audio_feat_length,
-    )
+        vae = AutoencoderKL.from_pretrained("checkpoints/sd-vae-ft-mse", torch_dtype=dtype)
+        vae.config.scaling_factor = 0.18215
+        vae.config.shift_factor = 0
 
-    vae = AutoencoderKL.from_pretrained("checkpoints/sd-vae-ft-mse", torch_dtype=dtype)
-    vae.config.scaling_factor = 0.18215
-    vae.config.shift_factor = 0
+        unet, _ = UNet3DConditionModel.from_pretrained(
+            OmegaConf.to_container(config.model),
+            args.inference_ckpt_path,
+            device="cpu",
+        )
 
-    unet, _ = UNet3DConditionModel.from_pretrained(
-        OmegaConf.to_container(config.model),
-        args.inference_ckpt_path,
-        device="cpu",
-    )
+        unet = unet.to(dtype=dtype)
 
-    unet = unet.to(dtype=dtype)
-
-    pipeline = LipsyncPipeline(
-        vae=vae,
-        audio_encoder=audio_encoder,
-        unet=unet,
-        scheduler=scheduler,
-    ).to(device)
+        pipeline = LipsyncPipeline(
+            vae=vae,
+            audio_encoder=audio_encoder,
+            unet=unet,
+            scheduler=scheduler,
+        ).to(device)
 
     # use DeepCache
     if args.enable_deepcache:
@@ -89,6 +93,8 @@ def main(config, args):
         torch.seed()
 
     print(f"Initial seed: {torch.initial_seed()}")
+    pipeline.audio_encoder.model.eval()
+    pipeline.vae.eval()
 
     pipeline(
         video_path=args.video_path,
@@ -103,6 +109,9 @@ def main(config, args):
         mask_image_path=config.data.mask_image_path,
         temp_dir=args.temp_dir,
     )
+    # clear DeepCache
+    if args.enable_deepcache:
+        helper.disable()
 
 
 if __name__ == "__main__":
